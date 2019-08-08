@@ -7,6 +7,7 @@ import (
 	"go.mozilla.org/sops/gcpkms"
 	"go.mozilla.org/sops/kms"
 	"go.mozilla.org/sops/pgp"
+	"go.mozilla.org/sops/vault"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -61,6 +62,17 @@ func (ks *Server) encryptWithAzureKeyVault(key *AzureKeyVaultKey, plaintext []by
 	return []byte(azkvKey.EncryptedKey), nil
 }
 
+func (ks *Server) encryptWithVault(key *VaultKey, plaintext []byte) ([]byte, error) {
+	vaultKey := vault.MasterKey{
+		KeyName: key.KeyName,
+	}
+	err := vaultKey.Encrypt(plaintext)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(vaultKey.EncryptedKey), nil
+}
+
 func (ks *Server) decryptWithPgp(key *PgpKey, ciphertext []byte) ([]byte, error) {
 	pgpKey := pgp.NewMasterKeyFromFingerprint(key.Fingerprint)
 	pgpKey.EncryptedKey = string(ciphertext)
@@ -92,6 +104,15 @@ func (ks *Server) decryptWithAzureKeyVault(key *AzureKeyVaultKey, ciphertext []b
 	}
 	azkvKey.EncryptedKey = string(ciphertext)
 	plaintext, err := azkvKey.Decrypt()
+	return []byte(plaintext), err
+}
+
+func (ks *Server) decryptWithVault(key *VaultKey, ciphertext []byte) ([]byte, error) {
+	vaultKey := vault.MasterKey{
+		KeyName: key.KeyName,
+	}
+	vaultKey.EncryptedKey = string(ciphertext)
+	plaintext, err := vaultKey.Decrypt()
 	return []byte(plaintext), err
 }
 
@@ -128,6 +149,14 @@ func (ks Server) Encrypt(ctx context.Context,
 		}
 	case *Key_AzureKeyvaultKey:
 		ciphertext, err := ks.encryptWithAzureKeyVault(k.AzureKeyvaultKey, req.Plaintext)
+		if err != nil {
+			return nil, err
+		}
+		response = &EncryptResponse{
+			Ciphertext: ciphertext,
+		}
+	case *Key_VaultKey:
+		ciphertext, err := ks.encryptWithVault(k.VaultKey, req.Plaintext)
 		if err != nil {
 			return nil, err
 		}
@@ -212,6 +241,14 @@ func (ks Server) Decrypt(ctx context.Context,
 		}
 	case *Key_AzureKeyvaultKey:
 		plaintext, err := ks.decryptWithAzureKeyVault(k.AzureKeyvaultKey, req.Ciphertext)
+		if err != nil {
+			return nil, err
+		}
+		response = &DecryptResponse{
+			Plaintext: plaintext,
+		}
+	case *Key_VaultKey:
+		plaintext, err := ks.decryptWithVault(k.VaultKey, req.Ciphertext)
 		if err != nil {
 			return nil, err
 		}

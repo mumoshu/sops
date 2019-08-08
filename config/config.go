@@ -69,6 +69,7 @@ type keyGroup struct {
 	KMS     []kmsKey
 	GCPKMS  []gcpKmsKey  `yaml:"gcp_kms"`
 	AzureKV []azureKVKey `yaml:"azure_keyvault"`
+	Vault   []vaultKey   `yaml:"vault"`
 	PGP     []string
 }
 
@@ -87,6 +88,10 @@ type azureKVKey struct {
 	VaultURL string `yaml:"vaultUrl"`
 	Key      string `yaml:"key"`
 	Version  string `yaml:"version"`
+}
+
+type vaultKey struct {
+	KeyName string `yaml:"key_name"`
 }
 
 type destinationRule struct {

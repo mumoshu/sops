@@ -19,6 +19,7 @@ import (
 	"go.mozilla.org/sops/gcpkms"
 	"go.mozilla.org/sops/kms"
 	"go.mozilla.org/sops/pgp"
+	"go.mozilla.org/sops/vault"
 )
 
 // SopsFile is a struct used by the stores as a helper to unmarshal the SOPS metadata
@@ -40,6 +41,7 @@ type Metadata struct {
 	KMSKeys                   []kmskey    `yaml:"kms" json:"kms"`
 	GCPKMSKeys                []gcpkmskey `yaml:"gcp_kms" json:"gcp_kms"`
 	AzureKeyVaultKeys         []azkvkey   `yaml:"azure_kv" json:"azure_kv"`
+	VaultKeys                 []vaultkey  `yaml:"vault" json:"vault"`
 	LastModified              string      `yaml:"lastmodified" json:"lastmodified"`
 	MessageAuthenticationCode string      `yaml:"mac" json:"mac"`
 	PGPKeys                   []pgpkey    `yaml:"pgp" json:"pgp"`
@@ -53,6 +55,7 @@ type keygroup struct {
 	KMSKeys           []kmskey    `yaml:"kms,omitempty" json:"kms,omitempty"`
 	GCPKMSKeys        []gcpkmskey `yaml:"gcp_kms,omitempty" json:"gcp_kms,omitempty"`
 	AzureKeyVaultKeys []azkvkey   `yaml:"azure_kv,omitempty" json:"azure_kv,omitempty"`
+	VaultKeys         []vaultkey  `yaml:"vault,omitempty" json:"vault,omitempty"`
 }
 
 type pgpkey struct {
@@ -84,6 +87,12 @@ type azkvkey struct {
 	EncryptedDataKey string `yaml:"enc" json:"enc"`
 }
 
+type vaultkey struct {
+	KeyName          string `yaml:"key_name" json:"name"`
+	CreatedAt        string `yaml:"created_at" json:"created_at"`
+	EncryptedDataKey string `yaml:"enc" json:"enc"`
+}
+
 // MetadataFromInternal converts an internal SOPS metadata representation to a representation appropriate for storage
 func MetadataFromInternal(sopsMetadata sops.Metadata) Metadata {
 	var m Metadata
@@ -99,6 +108,7 @@ func MetadataFromInternal(sopsMetadata sops.Metadata) Metadata {
 		m.KMSKeys = kmsKeysFromGroup(group)
 		m.GCPKMSKeys = gcpkmsKeysFromGroup(group)
 		m.AzureKeyVaultKeys = azkvKeysFromGroup(group)
+		m.VaultKeys = vaultKeysFromGroup(group)
 	} else {
 		for _, group := range sopsMetadata.KeyGroups {
 			m.KeyGroups = append(m.KeyGroups, keygroup{
@@ -106,6 +116,7 @@ func MetadataFromInternal(sopsMetadata sops.Metadata) Metadata {
 				PGPKeys:           pgpKeysFromGroup(group),
 				GCPKMSKeys:        gcpkmsKeysFromGroup(group),
 				AzureKeyVaultKeys: azkvKeysFromGroup(group),
+				VaultKeys:         vaultKeysFromGroup(group),
 			})
 		}
 	}
@@ -165,6 +176,20 @@ func azkvKeysFromGroup(group sops.KeyGroup) (keys []azkvkey) {
 				VaultURL:         key.VaultURL,
 				Name:             key.Name,
 				Version:          key.Version,
+				CreatedAt:        key.CreationDate.Format(time.RFC3339),
+				EncryptedDataKey: key.EncryptedKey,
+			})
+		}
+	}
+	return
+}
+
+func vaultKeysFromGroup(group sops.KeyGroup) (keys []vaultkey) {
+	for _, key := range group {
+		switch key := key.(type) {
+		case *vault.MasterKey:
+			keys = append(keys, vaultkey{
+				KeyName:          key.KeyName,
 				CreatedAt:        key.CreationDate.Format(time.RFC3339),
 				EncryptedDataKey: key.EncryptedKey,
 			})

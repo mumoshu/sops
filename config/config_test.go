@@ -87,6 +87,8 @@ creation_rules:
       - vaultUrl: https://foo.vault.azure.net
         key: foo-key
         version: fooversion
+      vault:
+      - key_name: foo
     - kms:
       - arn: baz
       pgp:
@@ -98,6 +100,9 @@ creation_rules:
       - vaultUrl: https://bar.vault.azure.net
         key: bar-key
         version: barversion
+      vault:
+      - key_name: foo
+      - key_name: bar
 `)
 
 var sampleConfigWithSuffixParameters = []byte(`
@@ -120,6 +125,9 @@ creation_rules:
         - vaultUrl: https://foo.vault.azure.net
           key: foo-key
           version: fooversion
+        gcp_kms:
+          - key_name: foo
+          - key_name: bar
     `)
 
 var sampleConfigWithInvalidParameters = []byte(`
@@ -200,6 +208,7 @@ func TestLoadConfigFileWithGroups(t *testing.T) {
 						PGP:     []string{"bar"},
 						GCPKMS:  []gcpKmsKey{{ResourceID: "foo"}},
 						AzureKV: []azureKVKey{{VaultURL: "https://foo.vault.azure.net", Key: "foo-key", Version: "fooversion"}},
+						Vault:   []vaultKey{{KeyName: "foo"}},
 					},
 					{
 						KMS: []kmsKey{{Arn: "baz"}},
@@ -209,6 +218,10 @@ func TestLoadConfigFileWithGroups(t *testing.T) {
 							{ResourceID: "baz"},
 						},
 						AzureKV: []azureKVKey{{VaultURL: "https://bar.vault.azure.net", Key: "bar-key", Version: "barversion"}},
+						Vault: []vaultKey{
+							{KeyName: "foo"},
+							{KeyName: "bar"},
+						},
 					},
 				},
 			},
